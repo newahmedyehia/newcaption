@@ -4,6 +4,7 @@ import os
 import whisper
 import srt
 import datetime
+import ffmpeg
 
 # Load Whisper model
 model = whisper.load_model("base")
@@ -22,9 +23,19 @@ if uploaded_file is not None:
 
     st.video(uploaded_file)
 
+    # Convert video to audio using ffmpeg
+    st.write("Extracting audio from video...")
+    audio_path = tempfile.NamedTemporaryFile(delete=False, suffix=".wav").name
+    try:
+        ffmpeg.input(temp_video_path).output(audio_path).run(quiet=True, overwrite_output=True)
+    except ffmpeg.Error as e:
+        st.error("Error extracting audio from video. Please try with a different video format or codec.")
+        os.unlink(temp_video_path)
+        st.stop()
+
     # Transcribe audio from video using Whisper
     st.write("Transcribing audio from video...")
-    result = model.transcribe(temp_video_path)
+    result = model.transcribe(audio_path)
 
     # Generate SRT file from transcription
     st.write("Generating SRT file...")
@@ -51,4 +62,5 @@ if uploaded_file is not None:
 
     # Clean up temporary files
     os.unlink(temp_video_path)
+    os.unlink(audio_path)
     os.unlink(srt_file_path)
