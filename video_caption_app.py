@@ -1,36 +1,16 @@
 import streamlit as st
 import tempfile
 import os
-import torch
-from transformers import VisionEncoderDecoderModel, ViTImageProcessor, AutoTokenizer
-from PIL import Image
-import imageio
-import imageio_ffmpeg as ffmpeg
+import whisper
+import srt
+import datetime
 
-# Load pre-trained model and tokenizer (this is just an example, you would need a video captioning model)
-model = VisionEncoderDecoderModel.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
-tokenizer = AutoTokenizer.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
-feature_extractor = ViTImageProcessor.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
-
-def generate_caption(image):
-    pixel_values = feature_extractor(images=image, return_tensors="pt").pixel_values
-    output_ids = model.generate(pixel_values, max_length=16, num_beams=4)
-    caption = tokenizer.decode(output_ids[0], skip_special_tokens=True)
-    return caption
-
-def extract_frames(video_path):
-    reader = imageio.get_reader(video_path, 'ffmpeg')
-    frames = []
-    fps = reader.get_meta_data().get('fps', 1)
-    for i, frame in enumerate(reader):
-        if i % int(fps) == 0:
-            image = Image.fromarray(frame)
-            frames.append(image)
-    return frames
+# Load Whisper model
+model = whisper.load_model("base")
 
 # Streamlit UI
-st.title("Video Captioning App")
-st.write("Upload a video and get an AI-generated caption.")
+st.title("Video to Subtitle Generator")
+st.write("Upload a video and get an SRT file with subtitles.")
 
 uploaded_file = st.file_uploader("Choose a video file", type=["mp4", "avi", "mov"])
 
@@ -42,24 +22,33 @@ if uploaded_file is not None:
 
     st.video(uploaded_file)
 
-    # Extract frames from video
-    st.write("Extracting frames from video...")
-    try:
-        frames = extract_frames(temp_video_path)
-    except ValueError as e:
-        st.error("Error extracting frames from video. Please try with a different video format or codec.")
-        os.unlink(temp_video_path)
-        st.stop()
+    # Transcribe audio from video using Whisper
+    st.write("Transcribing audio from video...")
+    result = model.transcribe(temp_video_path)
 
-    # Generate captions for extracted frames
-    st.write("Generating captions...")
-    captions = []
-    for i, frame in enumerate(frames):
-        caption = generate_caption(frame)
-        captions.append(f"Frame {i + 1}: {caption}")
-        st.write(captions[-1])
+    # Generate SRT file from transcription
+    st.write("Generating SRT file...")
+    segments = result["segments"]
+    subtitles = []
+    for segment in segments:
+        start = datetime.timedelta(seconds=segment["start"])
+        end = datetime.timedelta(seconds=segment["end"])
+        content = segment["text"]
+        subtitle = srt.Subtitle(index=len(subtitles) + 1, start=start, end=end, content=content)
+        subtitles.append(subtitle)
 
-    # Clean up temporary file
+    srt_content = srt.compose(subtitles)
+
+    # Save SRT file to a temporary file
+    srt_file_path = tempfile.NamedTemporaryFile(delete=False, suffix=".srt").name
+    with open(srt_file_path, "w") as srt_file:
+        srt_file.write(srt_content)
+
+    # Provide SRT file for download
+    st.write("Transcription completed. Download your SRT file below.")
+    with open(srt_file_path, "rb") as file:
+        st.download_button(label="Download SRT File", data=file, file_name="subtitles.srt", mime="text/plain")
+
+    # Clean up temporary files
     os.unlink(temp_video_path)
-
-    st.write("Caption generation completed.")
+    os.unlink(srt_file_path)
