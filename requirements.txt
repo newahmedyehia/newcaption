@@ -1,8 +1,8 @@
 streamlit
 openai-whisper @ git+https://github.com/openai/whisper.git
+whisper
 srt
 torch
-srt
 pydub
 ffmpeg
 ffmpeg-python
