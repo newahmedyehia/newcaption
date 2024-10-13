@@ -5,3 +5,5 @@ torch
 srt
 pydub
 ffmpeg
+ffmpeg-python
+
