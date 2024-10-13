@@ -1,66 +1,52 @@
 import streamlit as st
+import whisper
 import tempfile
 import os
-import whisper
-import srt
-import datetime
-import ffmpeg
 
-# Load Whisper model
-model = whisper.load_model("base")
+# تحميل نموذج Whisper
+@st.cache_resource
+def load_whisper_model():
+    return whisper.load_model("base")
 
-# Streamlit UI
-st.title("Video to Subtitle Generator")
-st.write("Upload a video and get an SRT file with subtitles.")
+# دالة لتحويل الفيديو إلى نص
+def transcribe_video(video_file, model):
+    # حفظ الملف المؤقت
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_file:
+        temp_file.write(video_file.read())
+        temp_file_path = temp_file.name
 
-uploaded_file = st.file_uploader("Choose a video file", type=["mp4", "avi", "mov"])
+    # استخراج النص من الفيديو
+    result = model.transcribe(temp_file_path)
+    
+    # حذف الملف المؤقت
+    os.unlink(temp_file_path)
+    
+    return result["text"]
+
+# إعداد الصفحة الرئيسية لتطبيق Streamlit
+st.title("تحويل الكلام في الفيديو إلى نص")
+st.write("قم بتحميل ملف فيديو وسنقوم بتحويل الكلام فيه إلى نص باستخدام Whisper.")
+
+# تحميل نموذج Whisper
+model = load_whisper_model()
+
+# واجهة تحميل الملف
+uploaded_file = st.file_uploader("اختر ملف فيديو", type=["mp4", "avi", "mov"])
 
 if uploaded_file is not None:
-    # Save uploaded video to a temporary file
-    tfile = tempfile.NamedTemporaryFile(delete=False)
-    tfile.write(uploaded_file.read())
-    temp_video_path = tfile.name
-
     st.video(uploaded_file)
-
-    # Convert video to audio using ffmpeg
-    st.write("Extracting audio from video...")
-    audio_path = tempfile.NamedTemporaryFile(delete=False, suffix=".wav").name
-    try:
-        ffmpeg.input(temp_video_path).output(audio_path).run(quiet=True, overwrite_output=True)
-    except ffmpeg.Error as e:
-        st.error("Error extracting audio from video. Please try with a different video format or codec.")
-        os.unlink(temp_video_path)
-        st.stop()
-
-    # Transcribe audio from video using Whisper
-    st.write("Transcribing audio from video...")
-    result = model.transcribe(audio_path)
-
-    # Generate SRT file from transcription
-    st.write("Generating SRT file...")
-    segments = result["segments"]
-    subtitles = []
-    for segment in segments:
-        start = datetime.timedelta(seconds=segment["start"])
-        end = datetime.timedelta(seconds=segment["end"])
-        content = segment["text"]
-        subtitle = srt.Subtitle(index=len(subtitles) + 1, start=start, end=end, content=content)
-        subtitles.append(subtitle)
-
-    srt_content = srt.compose(subtitles)
-
-    # Save SRT file to a temporary file
-    srt_file_path = tempfile.NamedTemporaryFile(delete=False, suffix=".srt").name
-    with open(srt_file_path, "w") as srt_file:
-        srt_file.write(srt_content)
-
-    # Provide SRT file for download
-    st.write("Transcription completed. Download your SRT file below.")
-    with open(srt_file_path, "rb") as file:
-        st.download_button(label="Download SRT File", data=file, file_name="subtitles.srt", mime="text/plain")
-
-    # Clean up temporary files
-    os.unlink(temp_video_path)
-    os.unlink(audio_path)
-    os.unlink(srt_file_path)
+    
+    if st.button("بدء التحويل إلى نص"):
+        with st.spinner("جاري تحويل الفيديو إلى نص..."):
+            transcription = transcribe_video(uploaded_file, model)
+        
+        st.success("تم التحويل بنجاح!")
+        st.write(transcription)
+        
+        # إنشاء زر لتنزيل النص
+        st.download_button(
+            label="تنزيل النص",
+            data=transcription,
+            file_name="transcription.txt",
+            mime="text/plain"
+        )
