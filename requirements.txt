@@ -1,6 +1,4 @@
 streamlit
+whisper
+srt
 torch
-transformers
-Pillow
-imageio
-imageio_ffmpeg
