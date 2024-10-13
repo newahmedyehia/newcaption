@@ -5,6 +5,7 @@ import torch
 from transformers import VisionEncoderDecoderModel, ViTImageProcessor, AutoTokenizer
 from PIL import Image
 import imageio
+import imageio_ffmpeg as ffmpeg
 
 # Load pre-trained model and tokenizer (this is just an example, you would need a video captioning model)
 model = VisionEncoderDecoderModel.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
@@ -18,10 +19,11 @@ def generate_caption(image):
     return caption
 
 def extract_frames(video_path):
-    reader = imageio.get_reader(video_path)
+    reader = imageio.get_reader(video_path, 'ffmpeg')
     frames = []
+    fps = reader.get_meta_data().get('fps', 1)
     for i, frame in enumerate(reader):
-        if i % reader.get_meta_data()['fps'] == 0:
+        if i % int(fps) == 0:
             image = Image.fromarray(frame)
             frames.append(image)
     return frames
@@ -42,7 +44,12 @@ if uploaded_file is not None:
 
     # Extract frames from video
     st.write("Extracting frames from video...")
-    frames = extract_frames(temp_video_path)
+    try:
+        frames = extract_frames(temp_video_path)
+    except ValueError as e:
+        st.error("Error extracting frames from video. Please try with a different video format or codec.")
+        os.unlink(temp_video_path)
+        st.stop()
 
     # Generate captions for extracted frames
     st.write("Generating captions...")
