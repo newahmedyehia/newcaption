@@ -1,9 +1,10 @@
 import streamlit as st
-import cv2
 import tempfile
 import os
 import torch
 from transformers import VisionEncoderDecoderModel, ViTImageProcessor, AutoTokenizer
+from PIL import Image
+import imageio
 
 # Load pre-trained model and tokenizer (this is just an example, you would need a video captioning model)
 model = VisionEncoderDecoderModel.from_pretrained("nlpconnect/vit-gpt2-image-captioning")
@@ -17,20 +18,12 @@ def generate_caption(image):
     return caption
 
 def extract_frames(video_path):
-    cap = cv2.VideoCapture(video_path)
-    frame_rate = int(cap.get(cv2.CAP_PROP_FPS))
-    count = 0
+    reader = imageio.get_reader(video_path)
     frames = []
-
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-        # Extract 1 frame per second for captioning purposes
-        if count % frame_rate == 0:
-            frames.append(frame)
-        count += 1
-    cap.release()
+    for i, frame in enumerate(reader):
+        if i % reader.get_meta_data()['fps'] == 0:
+            image = Image.fromarray(frame)
+            frames.append(image)
     return frames
 
 # Streamlit UI
