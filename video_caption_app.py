@@ -1,7 +1,7 @@
 import streamlit as st
 import tempfile
 import os
-import openai_whisper as whisper
+import whisper
 import srt
 import datetime
 
