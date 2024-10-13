@@ -4,15 +4,7 @@ import os
 import whisper
 import srt
 import datetime
-from pydub import AudioSegment
-from pydub.utils import which
-
-# Set ffmpeg path if not found
-if not which("ffmpeg"):
-    AudioSegment.converter = which("ffmpeg")
-    if not AudioSegment.converter:
-        st.error("ffmpeg is required for audio extraction but could not be found.")
-        st.stop()
+import ffmpeg
 
 # Load Whisper model
 model = whisper.load_model("base")
@@ -31,13 +23,12 @@ if uploaded_file is not None:
 
     st.video(uploaded_file)
 
-    # Convert video to audio using pydub
+    # Convert video to audio using ffmpeg
     st.write("Extracting audio from video...")
     audio_path = tempfile.NamedTemporaryFile(delete=False, suffix=".wav").name
     try:
-        audio = AudioSegment.from_file(temp_video_path)
-        audio.export(audio_path, format="wav")
-    except Exception as e:
+        ffmpeg.input(temp_video_path).output(audio_path).run(quiet=True, overwrite_output=True)
+    except ffmpeg.Error as e:
         st.error("Error extracting audio from video. Please try with a different video format or codec.")
         os.unlink(temp_video_path)
         st.stop()
