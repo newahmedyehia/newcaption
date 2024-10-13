@@ -5,6 +5,14 @@ import whisper
 import srt
 import datetime
 from pydub import AudioSegment
+from pydub.utils import which
+
+# Set ffmpeg path if not found
+if not which("ffmpeg"):
+    AudioSegment.converter = which("ffmpeg")
+    if not AudioSegment.converter:
+        st.error("ffmpeg is required for audio extraction but could not be found.")
+        st.stop()
 
 # Load Whisper model
 model = whisper.load_model("base")
